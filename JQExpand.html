@@ -1,0 +1,347 @@
+<!doctype html>
+<html>
+	<head>
+		<title>JQuery Collapsible</title>	
+		<link rel="stylesheet" href="iw_examples.css"/>
+        <meta charset="utf-8"/>
+
+		<style>		
+		.collapsible {border: 1px solid #4285f4;}
+		.collapsible > header {background-color: #4285f4; color: #fff;  padding: 5px; overflow: hidden; position: relative;}
+		.collapsible > header > h4 {margin:0; }		
+		.collapsible > header > .indicator {  font-size:80%; position: absolute; top: 1%; right: 1%;}						
+		.accordion {border: 2px solid #4285f4; padding:0}		
+		.accordion > .collapsible {border:none;}
+		</style>		
+		<script src="jquery.min.js">/* */</script>
+		
+		<script>		
+		//questa funzione lavora su una struttura ben definita di HTML + CSS, e ne sfrutta
+		//le caratteristiche (classi, tag, attributi) per manipolarla in maniera semplice e aggiungere
+		//la dinamica del "collapsible"
+		function makeCollapsible(container)  {
+			var colcontainer = $(container);
+			//la classe enabled (non usata un questo esempio) è utile per "marcare" un elemento
+			//su cui lo script sta operando, ad esempio per attivare stili specifici
+			colcontainer.addClass("enabled");
+			//
+			var colheader = $("> header[aria-controls]:first",colcontainer);
+			if(colheader.size()==1) {
+				//sfruttiamo l'attributo aria-controls per individuare il contenuto da collassare
+				var colbodyid = colheader.attr("aria-controls");							
+				var colbody = $("#"+colbodyid,colcontainer);
+				//l'indicatore di espansione viene creato al volo dallo script, e non deve
+				//essere inserito nella struttura			
+				var colindicator = $("<div class='indicator'/>");
+				colheader.append(colindicator);
+				
+				//usiamo degli eventi custom per dotare i collapsible di "metodi"
+				//facilmente richiamabili dall'esterno
+				colcontainer.on("awdcoll:expand",function(e,init) {
+					if (init) colbody.show(); //se stiamo inizializzando, mostra subito senza far vedere l'effetto
+					colbody.slideDown(function() {
+						//facciamo espandere l'elemento e poi ne manipoliamo gli attributi per riflettere il nuovo stato
+						colheader.attr("aria-expanded","true")
+						colcontainer.removeClass("collapsed"); 
+						colbody.attr("aria-hidden","false");
+						colindicator.text("Col");		
+					});				
+				});
+				
+				colcontainer.on("awdcoll:collapse",function(e,init) {
+					if (init) colbody.hide(); //se stiamo inizializzando, nascondi subito senza far vedere l'effetto
+					colbody.slideUp(function() {				
+						colheader.attr("aria-expanded","false")
+						colcontainer.addClass("collapsed"); 
+						colbody.attr("aria-hidden","true");  
+						colindicator.text("Exp");	
+					});
+				});
+				
+				//al click dell'header questo, in base allo stato dell'elemento controllato
+				//(collassato o espanso), deducibile dall'attributo aria-expanded, attiva
+				//l'evento che genera il cambio di stato
+				colheader.click(function(){ 			
+					if (colheader.attr("aria-expanded")=="true") {					
+						colcontainer.trigger("awdcoll:collapse");
+					} else {					
+						colcontainer.trigger("awdcoll:expand");				
+					}						
+					//RICEVENTE: $(document).on("awdcoll:expand",function(e){console.log(e.target)})
+				});
+				
+				//init
+				if (colheader.attr("aria-expanded")=="true") {					
+					colcontainer.trigger("awdcoll:expand",true);				
+				} else {	
+					colcontainer.trigger("awdcoll:collapse",true);									
+				}	
+			}
+		}
+		
+		//la funzione che segue prima manipola il container per creare tutto il
+		//markup richiesto da un collapsible "standard", poi richiama makeCollapsible
+		//per attivarlo		
+		function makeCollapsible2(container, collapsed)  {
+			var collapsed=(collapsed!=true)?false:collapsed;
+			var uid=Math.floor(Math.random() * 26) + Date.now();	
+			var colcontainer = $(container);
+			var colheader = $("> header:first",colcontainer);
+			if(colheader.size()==1) {
+				var colbody = $("<div id='swcol"+uid+"' aria-hidden='"+(collapsed?"true":"false")+"'/>");
+				colheader.attr("aria-controls","swcol"+uid); 
+				colheader.attr("aria-expanded",collapsed?"false":"true"); 
+				//eliminiamo momentaneamente l'header
+				colheader.detach();
+				//inseriamo tutto il contenuto rimanente in una div
+				colcontainer.wrapInner(colbody);					
+				//e rimettiamo l'header prima di essa
+				colcontainer.prepend(colheader)
+				//ora la struttura ha la forma manipolabile dalla funzione
+				//che abbiamo già realizzato, basta chiamarla!
+				makeCollapsible(container);
+			}
+		}
+		
+		//crea un accordion rendendo collapsible le sezioni figlio
+		//e aggiungendo su ciascuna un ulteriore handler che provoca la
+		//chiusura delle altre sezioni
+		function makeAccordion(container) {
+			var acccontainer = $(container);
+			$("> section",acccontainer).each(function() {
+				var colcontainer = $(this);
+				var colheader = $("> header:first",colcontainer);				
+				colcontainer.addClass("collapsible");
+				makeCollapsible2(this,true);		
+				colheader.click(function(){ 			
+					$("> section",acccontainer).not(colcontainer).trigger("awdcoll:collapse");					
+				});
+			});
+		}
+				
+		
+		$(function() {
+			//possiamo chiamare direttamente la nostra funzione su oggetti DOM selezionati con JQuery
+			makeCollapsible($("#coll1")[0]);
+			
+			/*---------------------------------------------------------*/
+				
+			//ovviamente se gli oggetti sono più di uno dobbiamo iterare
+			$(".collapsible.v2").each(function(){ 
+				makeCollapsible(this);
+			});	
+		
+			/*---------------------------------------------------------*/
+		
+			//oppure agganciamo come estensione di JQuery una funzione che richiama la nostra makeCollapsible su tutti gli elementi selezionati
+			//(ritorniamo this (restituito a sua volta da foreach) per permettere la concatenazione dei metodi di JQuery)
+			jQuery.fn.extend({"awdColl": function(){return this.each(function(){makeCollapsible(this)});}});
+						
+			//e usiamo l'estensione di JQuery appena definita
+			//la funzione di estensione itera automaticamente se l'insieme contiene più elementi
+			$(".collapsible.v1").awdColl();
+				
+			/*---------------------------------------------------------*/
+			
+			//attiviamo i collapsible con markup minimale
+			$(".collapsible.v3").each(function(){ 
+				makeCollapsible2(this);
+			});	
+			
+			/*---------------------------------------------------------*/
+			
+			//attiviamo l'accordion
+			$(".accordion").each(function(){ 
+				makeAccordion(this);
+			});	
+			
+			/*---------------------------------------------------------*/
+
+			//diagnostica: gli eventi di collapse ed expand verranno 
+			//catturati anche dal document e passati al log
+			$(document).on("awdcoll:expand awdcoll:collapse",function(e){console.log(e.target)})			
+			
+		});		
+		</script>
+	</head>
+	<body>
+	<h1>JQuery Collapsible</h1>	
+	<p>Per il sorgente delle funzioni principali, si veda il sorgente di questa pagina</p>
+	<p><em>Con gli script disattivati, le sezioni saranno tutte espanse</em></p>
+
+	<div class="esempi">
+	<h2>Collapsible standard, attivato singolarmente (per ID), accessibile</h2>
+	<div class="esempio">
+	<div class="rendering">
+	<section class="collapsible v0" id="coll1">
+	  <header aria-controls="content01" aria-expanded="false">
+		<h4>Standard- attivato per ID</h4>
+	  </header>
+	  <div id="content01" aria-hidden="true">
+		Corpo
+	  </div>
+	</section>
+	</div>
+	<div class="sorgente">
+	<h3>HTML</h3>
+	<p>&lt;section class=&quot;collapsible v0&quot; id=&quot;coll1&quot;&gt;
+	  &lt;header aria-controls=&quot;content01&quot; aria-expanded=&quot;false&quot;&gt;
+		&lt;h4&gt;Standard- attivato per ID&lt;/h4&gt;
+	  &lt;/header&gt;
+	  &lt;div id=&quot;content01&quot; aria-hidden=&quot;true&quot;&gt;
+		Corpo
+	  &lt;/div&gt;
+	&lt;/section&gt;</p><h3>Javascript</h3>
+
+	<p>makeCollapsible($("#coll1")[0]);</p>
+	</div>
+	</div>
+
+
+	<h2>Collapsible standard, attivato automaticamente in base alla classe, accessibile</h2>
+	<div class="esempio">
+	<div class="rendering">
+	<section class="collapsible v2" >
+	  <header aria-controls="content11" aria-expanded="true">
+		<h4>Standard - attivato per classe</h4>
+	  </header>
+	  <div id="content11" aria-hidden="false">
+	   Corpo
+	  </div>
+	</section>
+	</div>
+	<div class="sorgente"><h3>HTML</h3>
+	<p>&lt;section class=&quot;collapsible v2&quot; &gt;
+	  &lt;header aria-controls=&quot;content11&quot; aria-expanded=&quot;true&quot;&gt;
+		&lt;h4&gt;Standard - attivato per classe&lt;/h4&gt;
+	  &lt;/header&gt;
+	  &lt;div id=&quot;content11&quot; aria-hidden=&quot;false&quot;&gt;
+	   Corpo
+	  &lt;/div&gt;
+	&lt;/section&gt;</p><h3>Javascript</h3>
+	<p> $(".collapsible.v2").each(function(){ 
+					makeCollapsible(this);
+				});	</p>
+	</div>
+	</div>
+
+
+	<h2>Collapsible standard, attivato con una chiamata a jQuery.awdColl(), accessibile</h2>
+	<div class="esempio">
+	<div class="rendering">
+	<section class="collapsible v1">
+	  <header aria-controls="content01" aria-expanded="false">
+		<h4>Standard - attivato per classe con awdColl</h4>
+	  </header>
+	  <div id="content01" aria-hidden="true">
+	   Corpo
+	  </div>
+	</section>
+	</div>
+	<div class="sorgente"><h3>HTML</h3>
+	<p>&lt;section class=&quot;collapsible v1&quot;&gt;
+	  &lt;header aria-controls=&quot;content01&quot; aria-expanded=&quot;false&quot;&gt;
+		&lt;h4&gt;Standard - attivato per classe con awdColl&lt;/h4&gt;
+	  &lt;/header&gt;
+	  &lt;div id=&quot;content01&quot; aria-hidden=&quot;true&quot;&gt;
+	   Corpo
+	  &lt;/div&gt;
+	&lt;/section&gt;</p><h3>Javascript</h3>
+	<p> jQuery.fn.extend({"awdColl": function(){return this.each(function(){makeCollapsible(this)});}});</p>
+	<p>$(".collapsible.v1").awdColl();</p>
+	</div>
+	</div>
+
+
+	<h2>Collapsible minimale (senza markup specifico), attivato automaticamente, accessibile</h2>
+	<p>Qui il markup dell'area agganciata dallo script è basilare, e sarà lo script stesso a modificarla per renderla compatibile col suo funzionamento</p>
+	<div class="esempio">
+	<div class="rendering">
+	<section class="collapsible v3">
+	  <header>
+		<h4>Minimale - attivato per classe</h4>
+	  </header>  
+	  <div>
+		Corpo - DIV
+	  </div>
+	  <p>Corpo - P </p>
+	  Corpo - Text 
+	</section>
+	</div>
+	<div class="sorgente"><h3>HTML</h3>
+	<p>&lt;section class=&quot;collapsible v3&quot;&gt;
+	  &lt;header&gt;
+		&lt;h4&gt;Minimale - attivato per classe&lt;/h4&gt;
+	  &lt;/header&gt;  
+	  &lt;div&gt;
+		Corpo - DIV
+	  &lt;/div&gt;
+	  &lt;p&gt;Corpo - P &lt;/p&gt;
+	  Corpo - Text 
+	&lt;/section&gt;</p><h3>Javascript</h3>
+	<p>$(".collapsible.v3").each(function(){ 
+					makeCollapsible2(this);
+				});	</p>
+	</div>
+	</div>
+
+	<h2>Accordion minimale (senza markup specifico), attivato automaticamente, accessibile</h2>
+	<p>Si tratta di diverse sezioni collapsible minimali raggruppate in un contenitore</p>
+	<div class="esempio">
+	<div class="rendering">
+	<section class="accordion">
+		<section>
+		  <header>
+			<h4>AccordionH1</h4>
+		  </header>
+		  
+			Corpo 1
+			
+		</section>
+		<section>
+		  <header>
+			<h4>AccordionH2</h4>
+		  </header>
+		  
+			Corpo 2
+		  
+		</section>
+		<section>
+		  <header>
+			<h4>AccordionH3</h4>
+		  </header>
+		  
+			Corpo 3
+		  
+		</section>
+	</section>
+	</div>
+	<div class="sorgente"><h3>HTML</h3>
+	<p>&lt;section class=&quot;accordion&quot;&gt;</p>
+		<p>&lt;section&gt;
+		  &lt;header&gt;
+			&lt;h4&gt;AccordionH1&lt;/h4&gt;
+		  &lt;/header&gt;		  
+			Corpo 1		  
+		&lt;/section&gt;</p>
+		<p>&lt;section&gt;
+		  &lt;header&gt;
+			&lt;h4&gt;AccordionH2&lt;/h4&gt;
+		  &lt;/header&gt;		  
+			Corpo 2		  
+		&lt;/section&gt;
+		<p>&lt;section&gt;
+		  &lt;header&gt;
+			&lt;h4&gt;AccordionH3&lt;/h4&gt;
+		  &lt;/header&gt;
+			Corpo 3		  
+		&lt;/section&gt;</p>
+	<p>&lt;/section&gt;</p>
+	<h3>Javascript</h3>
+	<p>$(".accordion").each(function(){ 
+					makeAccordion(this);
+				});	</p>
+	</div>
+	</div>		
+	</body>
+</html>
